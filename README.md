@@ -14,11 +14,7 @@
             background-color: #05050a;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-
-        canvas {
-            display: block;
-        }
-
+        canvas { display: block; }
         #ui-overlay {
             position: absolute;
             top: 20px;
@@ -26,8 +22,10 @@
             color: #00d4ff;
             pointer-events: none;
             text-shadow: 0 0 5px rgba(0,212,255,0.5);
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
         }
-
         .controls {
             position: absolute;
             bottom: 20px;
@@ -39,7 +37,6 @@
             border: 1px solid #00d4ff;
             font-size: 12px;
         }
-
         h1 { margin: 0; font-size: 18px; letter-spacing: 2px; }
         p { margin: 5px 0; opacity: 0.8; }
     </style>
@@ -47,8 +44,8 @@
 <body>
 
     <div id="ui-overlay">
-        <h1>COSMOS MAPPER v1.0</h1>
-        <p id="stats">Objetos: 0 | Zoom: 1.0x</p>
+        <h1>COSMOS MAPPER v1.1</h1>
+        <p id="stats">Objetos: 0 | Zoom: 1.00x</p>
         <p id="coords">X: 0, Y: 0</p>
     </div>
 
@@ -67,13 +64,11 @@
         const statsEl = document.getElementById('stats');
         const coordsEl = document.getElementById('coords');
 
-        // Configurações do Universo
         let width, height;
         const objects = [];
-        const STAR_COUNT = 5000;
-        const GALAXY_COUNT = 50;
+        const STAR_COUNT = 4000;
+        const GALAXY_COUNT = 40;
 
-        // Estado da Câmera
         const camera = {
             x: 0,
             y: 0,
@@ -85,30 +80,29 @@
 
         class CelestialBody {
             constructor(isGalaxy = false) {
-                // Coordenadas mundiais massivas
-                this.x = (Math.random() - 0.5) * 50000;
-                this.y = (Math.random() - 0.5) * 50000;
-                this.size = isGalaxy ? Math.random() * 50 + 20 : Math.random() * 2 + 0.5;
+                // Área de dispersão aumentada para exploração
+                this.x = (Math.random() - 0.5) * 80000;
+                this.y = (Math.random() - 0.5) * 80000;
+                this.size = isGalaxy ? Math.random() * 60 + 30 : Math.random() * 2 + 0.5;
                 this.color = this.generateColor(isGalaxy);
                 this.isGalaxy = isGalaxy;
                 this.rotation = Math.random() * Math.PI * 2;
             }
 
             generateColor(isGalaxy) {
-                const hues = isGalaxy ? [200, 280, 320] : [0, 60, 200, 180];
+                const hues = isGalaxy ? [220, 260, 300] : [200, 220, 40, 0];
                 const h = hues[Math.floor(Math.random() * hues.length)];
-                const s = 80;
-                const l = isGalaxy ? 60 : 80;
+                const s = 70;
+                const l = isGalaxy ? 50 : 90;
                 return `hsla(${h}, ${s}%, ${l}%, ${Math.random() * 0.5 + 0.5})`;
             }
 
             draw() {
-                // Converter coordenadas do mundo para tela
                 const screenX = (this.x - camera.x) * camera.zoom + width / 2;
                 const screenY = (this.y - camera.y) * camera.zoom + height / 2;
                 const screenSize = this.size * camera.zoom;
 
-                // Culling (não desenhar se estiver fora da tela)
+                // Culling: Não desenha se estiver fora da visão
                 if (screenX + screenSize < 0 || screenX - screenSize > width ||
                     screenY + screenSize < 0 || screenY - screenSize > height) return;
 
@@ -125,9 +119,12 @@
                 ctx.arc(x, y, size, 0, Math.PI * 2);
                 ctx.fill();
                 
-                if (camera.zoom > 2) { // Brilho extra no zoom alto
-                    ctx.shadowBlur = size * 2;
-                    ctx.shadowColor = this.color;
+                // Brilho otimizado (apenas se o zoom for alto e o objeto for visível)
+                if (camera.zoom > 3 && size > 1) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, size * 2, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color.replace('%, 0.', '%, 0.1'); // Versão mais transparente
+                    ctx.fill();
                 }
             }
 
@@ -138,29 +135,23 @@
                 
                 const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
                 gradient.addColorStop(0, this.color);
+                gradient.addColorStop(0.5, this.color.replace('1)', '0.2)'));
                 gradient.addColorStop(1, 'transparent');
                 
                 ctx.fillStyle = gradient;
-                ctx.globalAlpha = 0.4;
-                
-                // Forma elíptica da galáxia
                 ctx.beginPath();
-                ctx.ellipse(0, 0, size, size / 2, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, 0, size, size * 0.4, 0, 0, Math.PI * 2);
                 ctx.fill();
                 
                 ctx.restore();
-                ctx.globalAlpha = 1;
-                ctx.shadowBlur = 0;
             }
         }
 
         function init() {
             resize();
-            // Criar Estrelas
-            for (let i = 0; i < STAR_COUNT; i++) objects.push(new CelestialBody(false));
-            // Criar Galáxias
+            // Criar primeiro galáxias (fundo) e depois estrelas (frente)
             for (let i = 0; i < GALAXY_COUNT; i++) objects.push(new CelestialBody(true));
-            
+            for (let i = 0; i < STAR_COUNT; i++) objects.push(new CelestialBody(false));
             animate();
         }
 
@@ -169,23 +160,29 @@
             height = canvas.height = window.innerHeight;
         }
 
-        // Listeners de Input
+        function updateCoordsUI() {
+            coordsEl.innerText = `X: ${Math.round(camera.x)}, Y: ${Math.round(camera.y)}`;
+            statsEl.innerText = `Objetos: ${objects.length} | Zoom: ${camera.zoom.toFixed(2)}x`;
+        }
+
         window.addEventListener('resize', resize);
 
         window.addEventListener('wheel', (e) => {
-            const zoomSpeed = 0.1;
+            e.preventDefault();
+            const zoomSpeed = 0.15;
             const delta = e.deltaY > 0 ? 1 - zoomSpeed : 1 + zoomSpeed;
             
-            // Zoom em direção ao mouse
             const mouseWorldX = (e.clientX - width / 2) / camera.zoom + camera.x;
             const mouseWorldY = (e.clientY - height / 2) / camera.zoom + camera.y;
 
-            camera.zoom *= delta;
-            camera.zoom = Math.max(0.01, Math.min(camera.zoom, 50)); // Limites de zoom
-
-            camera.x = mouseWorldX - (e.clientX - width / 2) / camera.zoom;
-            camera.y = mouseWorldY - (e.clientY - height / 2) / camera.zoom;
-        });
+            const newZoom = camera.zoom * delta;
+            if (newZoom > 0.005 && newZoom < 100) {
+                camera.zoom = newZoom;
+                camera.x = mouseWorldX - (e.clientX - width / 2) / camera.zoom;
+                camera.y = mouseWorldY - (e.clientY - height / 2) / camera.zoom;
+            }
+            updateCoordsUI();
+        }, { passive: false });
 
         window.addEventListener('mousedown', (e) => {
             camera.isDragging = true;
@@ -204,20 +201,22 @@
                 camera.lastMouseX = e.clientX;
                 camera.lastMouseY = e.clientY;
             }
-            coordsEl.innerText = `X: ${Math.round(camera.x)}, Y: ${Math.round(camera.y)}`;
+            updateCoordsUI();
         });
 
         window.addEventListener('mouseup', () => camera.isDragging = false);
 
         function animate() {
+            // Limpa o canvas e redefine o alpha e sombras (importante!)
             ctx.fillStyle = '#05050a';
             ctx.fillRect(0, 0, width, height);
+            ctx.shadowBlur = 0; 
+            ctx.globalAlpha = 1;
 
-            // Desenhar todos os objetos celestes
-            objects.forEach(obj => obj.draw());
-
-            // Atualizar UI
-            statsEl.innerText = `Objetos: ${objects.length} | Zoom: ${camera.zoom.toFixed(2)}x`;
+            // Renderiza objetos
+            for (const obj of objects) {
+                obj.draw();
+            }
 
             requestAnimationFrame(animate);
         }
